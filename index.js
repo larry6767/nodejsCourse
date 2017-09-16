@@ -27,7 +27,6 @@
 - index.html или curl для тестирования
 
 */
-'use strict';
 
 const server = require('server');
 

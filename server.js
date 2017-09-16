@@ -1,5 +1,3 @@
-'use strict';
-
 const http = require('http');
 const url = require('url');
 const path = require('path');
@@ -8,32 +6,7 @@ const config = require('config');
 const mime = require('mime');
 
 module.exports = http.createServer(function(req, res) {
-  let pathname;
-  try {
-    pathname = decodeURIComponent(url.parse(req.url).pathname);
-  } catch (err) {
-    res.tatusCode = 400;
-    res.end('Bad request');
-    return;
-  }
-
-  if (~pathname.indexOf('\0')) {
-    res.statusCode = 400;
-    res.end('Bad request');
-    return;
-  }
-
-  let filename = pathname.slice(1);
-  if (filename.includes('/') || filename.includes('..')) {
-    res.statusCode = 400;
-    res.end('Nested paths are not allowed');
-    return;
-  }
-
-  return {
-    pathname,
-    filename,
-  };
+  let {pathname, filename} = processRequest(req, res);
 
   switch (req.method) {
     case 'GET':
