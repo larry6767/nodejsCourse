@@ -109,11 +109,8 @@ function receiveFile(filepath, req, res) {
         if (!res.headersSent) {
           res.writeHead(500, {'Connection': 'close'});
           res.write('Internal error');
-          // res.statusCode = 500;
-          // res.end('Internal error');
-        } else {
-          res.end();
         }
+        res.end();
         fs.unlink(filepath, (err) => {
           console.error(err);
         });
@@ -164,11 +161,8 @@ function sendFile(filepath, res) {
         if (!res.headersSent) {
           res.writeHead(500, {'Connection': 'close'});
           res.write('Internal error');
-          // res.statusCode = 500;
-          // res.end('Internal error');
-        } else {
-          res.end();
         }
+        res.end();
       }
     })
 
