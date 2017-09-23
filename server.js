@@ -6,7 +6,27 @@ const config = require('config');
 const mime = require('mime');
 
 module.exports = http.createServer(function(req, res) {
-  let {pathname, filename} = processRequest(req, res);
+  let pathname;
+  try {
+    pathname = decodeURIComponent(url.parse(req.url).pathname);
+  } catch (err) {
+    res.statusCode = 400;
+    res.end('Bad request');
+    return;
+  }
+
+  if (~pathname.indexOf('\0')) {
+    res.statusCode = 400;
+    res.end('Bad request');
+    return;
+  }
+
+  let filename = pathname.slice(1);
+  if (filename.includes('/') || filename.includes('..')) {
+    res.statusCode = 400;
+    res.end('Nested paths are not allowed');
+    return;
+  }
 
   switch (req.method) {
     case 'GET':
@@ -48,41 +68,6 @@ module.exports = http.createServer(function(req, res) {
       res.statusCode = 502;
   }
 }).listen(3000);
-
-/**
- * Processes the request.
- * @param {object} req The request object.
- * @param {object} res The response object.
- * @return {object} The object contains the query string and filename.
- */
-function processRequest(req, res) {
-  let pathname;
-  try {
-    pathname = decodeURIComponent(url.parse(req.url).pathname);
-  } catch (err) {
-    res.tatusCode = 400;
-    res.end('Bad request');
-    return;
-  }
-
-  if (~pathname.indexOf('\0')) {
-    res.statusCode = 400;
-    res.end('Bad request');
-    return;
-  }
-
-  let filename = pathname.slice(1);
-  if (filename.includes('/') || filename.includes('..')) {
-    res.statusCode = 400;
-    res.end('Nested paths are not allowed');
-    return;
-  }
-
-  return {
-    pathname,
-    filename,
-  };
-}
 
 /**
  * Writes a file to the specified path.
