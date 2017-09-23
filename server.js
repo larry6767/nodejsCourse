@@ -76,7 +76,7 @@ module.exports = http.createServer(function(req, res) {
  * @param {object} res The response object.
  */
 function receiveFile(filepath, req, res) {
-  if (req.headers['content-lenght'] > config.get('limitFileSize')) {
+  if (req.headers['content-length'] > config.get('limitFileSize')) {
     res.statusCode = 413;
     res.end('File is too big');
     return;
@@ -113,7 +113,7 @@ function receiveFile(filepath, req, res) {
       });
     })
     .on('data', (chunk) => {
-      size += chunk.lenght;
+      size += chunk.length;
       if (size > config.get('limitFileSize')) {
         res.writeHead(413, 'Connection', 'close');
         res.end('File is too big');
