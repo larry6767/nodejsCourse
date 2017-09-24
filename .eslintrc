@@ -4,6 +4,6 @@
 		// Additional, per-project rules...
 	},
 	"parserOptions": {
-		"ecmaVersion": 6
+		"ecmaVersion": 8
 	}
 }

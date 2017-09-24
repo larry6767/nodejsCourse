@@ -2,172 +2,144 @@ const server = require('../server');
 const host = 'http://127.0.0.1:3000';
 const fixturesRoot = __dirname + '/fixtures';
 
-const request = require('request').defaults({
-  encoding: null
-});
-const rp = require('request-promise').defaults({
-  encoding: null
+const request = require('request-promise').defaults({
+  encoding: null,
+  simple: false,
+  resolveWithFullResponse: true,
 });
 
 const fs = require('fs-extra');
-const assert = require('assert');
 const config = require('config');
 const Readable = require('stream').Readable;
 
-const should = require('should');
-// make sure you run it in test env
-// should(process.env.NODE_ENV).eql('test');
-
-describe('server tests', () => {
-  let app;
+describe('Server', () => {
   before((done) => {
-    app = server.listen(3000, done);
+    server.listen(3000, '127.0.0.1', done);
   });
 
   after((done) => {
-    app.close(done);
+    server.close(done);
   });
 
   beforeEach(() => {
     fs.emptyDirSync(config.get('filesRoot'));
   });
 
-  describe('GET method tests', () => {
-    context('When exist', () => {
+  describe('GET method', () => {
+    context('when file exist', () => {
       beforeEach(() => {
         fs.copySync(`${fixturesRoot}/small.png`,
          config.get('filesRoot') + '/small.png');
       });
 
       it('returns 200 & the file', async () => {
-        let fixtureContent = fs.readFileSync(`${fixturesRoot}/small.png`);
-
-        const response = await rp.get(`${host}/small.png`);
-        response.equals(fixtureContent).should.be.true();
+        const fixtureContent = fs.readFileSync(`${fixturesRoot}/small.png`);
+        const response = await request.get(`${host}/small.png`);
+        response.body.equals(fixtureContent).should.be.true();
       });
     });
 
     context('otherwise', () => {
-      it('returns 404', done => {
-
-        request.get(`${host}/small.png`, (err, response) => {
-          if (err) return done(err);
-          response.statusCode.should.be.equal(404);
-          done();
-        });
-
+      it('returns 404', async () => {
+        const response = await request.get(`${host}/small.png`);
+        response.statusCode.should.be.equal(404);
       });
     });
-
   });
 
   describe('GET /nested/path', () => {
-    it('returns 400', done => {
-
-      request.get(`${host}/nested/path`, (error, response) => {
-        if (error) return done(error);
-        response.statusCode.should.be.equal(400);
-        done();
-      });
-
+    it('returns 400', async () => {
+      const response = await request.get(`${host}/nested/path`);
+      response.statusCode.should.be.equal(400);
     });
   });
 
-  describe('POST method tests', () => {
-
-    context('When exists', () => {
+  describe('POST method', () => {
+    context('when file exists', () => {
       beforeEach(() => {
         fs.copySync(`${fixturesRoot}/small.png`,
          config.get('filesRoot') + '/small.png');
       });
 
-      context('When small file size', () => {
-        it('returns 409 & file not modified', done => {
-          let mtime = fs.statSync(config.get('filesRoot') + '/small.png').mtime;
-
-          let req = request.post(`${host}/small.png`, (err, response) => {
-            if (err) return done(err);
-            let newMtime = fs.statSync(config.get('filesRoot') + '/small.png').mtime;
-
-            // eql compares dates the right way
-            mtime.should.eql(newMtime);
-
-            response.statusCode.should.be.equal(409);
-            done();
-          });
+      context('when small file size', () => {
+        it('returns 409 & file not modified', async () => {
+          const filePath = config.get('filesRoot') + '/small.png';
+          const {mtime} = fs.statSync(filePath);
+          const req = request.post(`${host}/small.png`);
 
           fs.createReadStream(`${fixturesRoot}/small.png`).pipe(req);
+
+          const response = await req;
+
+          const {mtime: newMtime} = fs.statSync(filePath);
+          mtime.should.eql(newMtime);
+          response.statusCode.should.be.equal(409);
         });
 
-        context('When zero file size', () => {
-          it('returns 409', done => {
-            let req = request.post(`${host}/small.png`, (err, response) => {
-              if (err) return done(err);
-
-              response.statusCode.should.be.equal(409);
-              done();
-            });
-
-            // emulate zero-file
-            let stream = new Readable();
+        context('when zero file size', () => {
+          it('returns 409', async () => {
+            const req = request.post(`${host}/small.png`);
+            const stream = new Readable(); // emulate zero-file
 
             stream.pipe(req);
             stream.push(null);
 
+            const response = await req;
+
+            response.statusCode.should.be.equal(409);
           });
         });
-
       });
     });
 
-    context('When file too big', () => {
-      it('returns 413 and no file appears', done => {
-
-        let req = request.post(`${host}/big.png`, (err, response) => {
-          response.statusCode.should.be.equal(413);
-          setTimeout(() => {
-            fs.existsSync(config.get('filesRoot') + '/big.png').should.be.false();
-            done();
-          }, 20);
-        });
-
+    context('when file too big', () => {
+      it('returns 413 and no file appears', async () => {
+        const req = request.post(`${host}/big.png`);
         fs.createReadStream(`${fixturesRoot}/big.png`).pipe(req);
+
+        try {
+          response = await req;
+        } catch (err) {
+          // see ctx for description https://github.com/nodejs/node/issues/947#issue-58838888
+          // there is a problem in nodejs with it
+          if (err.cause && err.cause.code == 'EPIPE') return;
+
+          throw err;
+        }
+
+        response.statusCode.should.be.equal(413);
+        fs.existsSync(config.get('filesRoot') + '/big.png').should.be.false();
       });
     });
 
-    context("otherwise with zero file size", () => {
-      it('returns 200 & file is uploaded', done => {
-        let req = request.post(`${host}/small.png`, err => {
-          if (err) return done(err);
-
-          fs.statSync(config.get('filesRoot') + '/small.png').size.should.equal(0);
-
-          done();
-        });
-
-        let stream = new Readable();
+    context('otherwise with zero file size', () => {
+      it('returns 200 & file is uploaded', async () => {
+        const req = request.post(`${host}/small.png`);
+        const stream = new Readable();
+        const filePath = config.get('filesRoot') + '/small.png';
 
         stream.pipe(req);
         stream.push(null);
 
+        const response = await req;
+
+        response.statusCode.should.be.equal(200);
+        fs.statSync(filePath).size.should.equal(0);
       });
     });
 
-    context("otherwise", () => {
-
-      it("returns 200 & file is uploaded", done => {
-        let req = request.post(`${host}/small.png`, err => {
-          if (err) return done(err);
-          fs.readFileSync(config.get('filesRoot') + '/small.png').equals(
-            fs.readFileSync(`${fixturesRoot}/small.png`)
-          ).should.be.true();
-          done();
-
-        });
-
+    context('otherwise', () => {
+      it('returns 200 & file is uploaded', async () => {
+        const req = request.post(`${host}/small.png`);
         fs.createReadStream(`${fixturesRoot}/small.png`).pipe(req);
+
+        const response = await req;
+
+        response.statusCode.should.equal(200);
+        fs.readFileSync(config.get('filesRoot') + '/small.png').equals(
+          fs.readFileSync(`${fixturesRoot}/small.png`)
+        ).should.be.true();
       });
     });
-
   });
 });
