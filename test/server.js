@@ -142,4 +142,30 @@ describe('Server', () => {
       });
     });
   });
+
+  describe('DELETE method', () => {
+    context('when file exists', () => {
+      beforeEach(() => {
+        fs.copySync(`${fixturesRoot}/small.png`,
+         config.get('filesRoot') + '/small.png');
+      });
+
+      it('returns 200 & file is deleted', async () => {
+        const response = await request.delete(`${host}/small.png`);
+        response.statusCode.should.be.equal(200);
+        fs.existsSync(config.get('filesRoot') + '/small.png').should.be.false();
+      });
+    });
+
+    context('otherwise', () => {
+      beforeEach(() => {
+        fs.emptyDirSync(config.get('filesRoot'));
+      });
+
+      it('returns 404', async () => {
+        const response = await request.delete(`${host}/small.png`);
+        response.statusCode.should.be.equal(404);
+      });
+    });
+  });
 });
